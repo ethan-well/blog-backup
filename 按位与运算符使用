@@ -1,0 +1,35 @@
+按位与这种运算符号相信大家都很熟悉，但是在实践中使用的地方应该不多，我本以为这种东西应该永远不会被用到，但是最近的一个需求中发现逻辑与在处理一些场景的问题时候还是蛮方便的。
+
+现在有这么一个需求，让用户在页面选择是否公开展示用户邮箱、位置信息、微博地址、博客地址，当用户勾选后就展示，不勾选就不展示。通常我们可以采取的做法是在数据库中增加 show_mail show_location show_weibo show_blog 这些 boolean 类型的字段，用户选择后就更新对应的字段为 true，取消选择就置为 false，这是个可行方案，逻辑上也比较清晰，但是这种方案有几个问题比如有新的信息字段需要控制是否展示就需要在数据库中添加新的字段，借助位位算符可以简化到使用一个字段解决这个问题，下面给出一个在 Rails 中实现的列子，在其他语言中也是一样的，知识实现的具体语法有所差别。
+
+在看这个例子之前建议大家再回顾下位运算符，相信大家和我应该一样，平时很少用到位运算符。
+
+在上面描述的场景中，使用使用位运算符就只需要给数据库中对应表增加一个 public_info 字段，默认值位 0， 假设 user 表， 增加一个 然后定义以下对象，在 Rails 定义位 User model 的一个静态变量。
+
+```
+PUBLIC_INFO = {
+    EMAIL: 0b00001,
+    BLOG: 0b00010,
+    WEIBO: 0b00100,
+    LOCATION: 0b01000,
+    SKILL_RADAR: 0b10000,
+    ALL_SHOW: 0b11111
+  }
+```
+即使用不同的而机制值表示不同的权限，这个相信明白了安位操作的同学都能明白为什么需要这样做。这样数据库中存的值则为对应项的二进制相加的结果,比如用户选择了展示 email 和 blog 则存储的就是 `PUBLIC_INFO[:EMAIL] + PUBLIC_INFO[:BLOG]` 的结果。 这样再判断某个字段是否公开展示就很简单了, 如判断是否展示 email:
+```
+def show_email?
+	user.public_info & PUBLIC_INFO[: EMAIL] == PUBLIC_INFO[: EMAIL]
+end
+```
+即可
+
+使用 rails 元编程 `define_method` 方法，我们可以方便的定义判断各种信息是否展示的方法:
+```
+PUBLIC_INFO.each do |key, value|
+    define_method "show_#{key.to_s.downcase}?" do
+	user.public_info & value == value
+    end
+end
+```
+这样就定义了 `show_mail?` 、`show_blog?`、`show_weibo?` ... 等方法。
